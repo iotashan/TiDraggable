@@ -23,12 +23,14 @@ import org.appcelerator.titanium.TiContext;
 import org.appcelerator.titanium.TiDimension;
 import org.appcelerator.titanium.proxy.TiViewProxy;
 import org.appcelerator.titanium.util.TiConvert;
+import org.appcelerator.titanium.view.Ti2DMatrix;
 import org.appcelerator.titanium.view.TiCompositeLayout;
 import org.appcelerator.titanium.view.TiUIView;
 import org.appcelerator.titanium.view.TiCompositeLayout.LayoutArrangement;
 import org.appcelerator.titanium.view.TiCompositeLayout.LayoutParams;
 
 import android.app.Activity;
+import android.util.FloatMath;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -65,7 +67,16 @@ public class ViewProxy extends TiViewProxy {
 	private boolean hasListenerStart = false;
 	private boolean hasListenerMove = false;
 	private boolean hasListenerEnd = false;
-	
+
+	//Touch event related variables
+    final int IDLE = 0;
+    final int TOUCH = 1;
+    final int PINCH = 2;
+    int touchState = IDLE;
+    float scale = 1;
+    float pinchScale = 1;
+    float dist0, distCurrent;
+
 	public ViewProxy() {}
 
 	public ViewProxy(TiContext tiContext) {
@@ -139,11 +150,14 @@ public class ViewProxy extends TiViewProxy {
 						eventY = Math.round(event.getRawY()),
 						_left = 0,
 						_top = 0;
+                    
+                    // hold for pinching
+                    float distx, disty;
 					
 					// What to do in each case??
-					switch (event.getAction()) {
+                    switch(event.getAction() & MotionEvent.ACTION_MASK){
 						case MotionEvent.ACTION_DOWN:
-							// Log.d(LCAT, "MotionEvent.ACTION_DOWN");
+							Log.d(LCAT, "MotionEvent.ACTION_DOWN");
 							
 							// Check for event listeners here, we need to be sure that the JS is loaded
 							// Also, store in boolean variable, we don't need to check every time, do we?
@@ -174,89 +188,125 @@ public class ViewProxy extends TiViewProxy {
 								props.put("center", center);
 								_proxy.fireEvent("start", props);
 							}
-							
+							touchState = TOUCH;
 						break;
+                        case MotionEvent.ACTION_POINTER_DOWN:
+                            Log.d(LCAT, "MotionEvent.ACTION_POINTER_DOWN");
+                            //A non-primary pointer has gone down.
+                            touchState = PINCH;
+                            //Get the distance when the second pointer touch
+                            distx = event.getX(0) - event.getX(1);
+                            disty = event.getY(0) - event.getY(1);
+                            dist0 = FloatMath.sqrt(distx * distx + disty * disty);
+                        break;
 						case MotionEvent.ACTION_MOVE:
-							// Log.d(LCAT, "MotionEvent.ACTION_MOVE");
-							
-							// If axis "y", leave the left position intact
-							if (_proxy.hasAxisY) {
-								_left = positionLeft;
-								//Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisY - _left: "+_left);
-							}
-							// otherwise, adjust the "left" variable
-							else {
-								_left = (eventX + tempLeft);
-								// Don't move more that maxLeft 
-								if (_proxy.hasMaxLeft && _proxy.maxLeft < _left) {
-									_left = _proxy.maxLeft;
-								}
-								// Don't move more that minLeft 
-								if (_proxy.hasMinLeft && _proxy.minLeft > _left) {
-									_left = _proxy.minLeft;
-								}
-								// Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisY NOT - _left: "+_left);
-							}
-							
-							// If axis "x", leave the top position intact
-							if (_proxy.hasAxisX) {
-								_top = positionTop;
-								// Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisX - _top: "+_top);
-							}
-							// otherwise, adjust the "top" variable
-							else {
-								_top = (eventY + tempTop);
-								// Don't move more that maxTop 
-								if (_proxy.hasMaxTop == true && _proxy.maxTop < _top) {
-									_top = _proxy.maxTop;
-								}
-								// Don't move more that minTop 
-								if (_proxy.hasMinTop == true && _proxy.minTop > _top) {
-									_top = _proxy.minTop;
-								}
-								// Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisX NOT - _top: "+_top);
-							}
-							
-							// set the new layout parameters
-							_layout.optionLeft = new TiDimension(_left, TiDimension.TYPE_LEFT);
-							_layout.optionTop = new TiDimension(_top, TiDimension.TYPE_LEFT);
-							
-							// now get the direction of the movement:
-							// vertical
-							if(oldTop > _top){
-								directionVertical = "up"+"";
-							} else if(oldTop < _top){
-								directionVertical = "down"+"";
-							} else {
-								directionVertical = "neutral"+"";
-							}
-							// horizontal
-							if(oldLeft > _left){
-								directionHorizontal = "left"+"";
-							} else if(oldLeft < _left){
-								directionHorizontal = "right"+"";
-							} else {
-								directionHorizontal = "neutral"+"";
-							}
+                            if(touchState == PINCH){
+                                Log.d(LCAT, "MotionEvent.ACTION_MOVE: PINCH");
+                                //Get the current distance
+                                distx = event.getX(0) - event.getX(1);
+                                disty = event.getY(0) - event.getY(1);
+                                distCurrent = FloatMath.sqrt(distx * distx + disty * disty);
+                                
+                                // resize according to scale
+                                pinchScale = distCurrent/dist0 * scale;
+                                
+                                if (pinchScale < 0.1){
+                                    pinchScale = 0.1f; 
+                                }
+                                
+                                Object[] matrixArgs = {pinchScale};
+                                Ti2DMatrix matrix = new Ti2DMatrix().scale(matrixArgs);
+                                
+                                _layout.optionTransform = matrix;
+                                Log.d(LCAT, "MotionEvent.ACTION_MOVE pinchScale: "+pinchScale);
+                                Log.d(LCAT, "MotionEvent.ACTION_MOVE matrixArgs: "+matrixArgs);
+                                Log.d(LCAT, "MotionEvent.ACTION_MOVE _layout: "+_layout);
+                                
+                                // set the scale on the view
+                                view.setLayoutParams(_layout);
+                            } else {
+                                Log.d(LCAT, "MotionEvent.ACTION_MOVE: NOT PINCH");
+                                // Log.d(LCAT, "MotionEvent.ACTION_MOVE");
+                                
+                                // If axis "y", leave the left position intact
+                                if (_proxy.hasAxisY) {
+                                    _left = positionLeft;
+                                    //Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisY - _left: "+_left);
+                                }
+                                // otherwise, adjust the "left" variable
+                                else {
+                                    _left = (eventX + tempLeft);
+                                    // Don't move more that maxLeft 
+                                    if (_proxy.hasMaxLeft && _proxy.maxLeft < _left) {
+                                        _left = _proxy.maxLeft;
+                                    }
+                                    // Don't move more that minLeft 
+                                    if (_proxy.hasMinLeft && _proxy.minLeft > _left) {
+                                        _left = _proxy.minLeft;
+                                    }
+                                    // Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisY NOT - _left: "+_left);
+                                }
+                                
+                                // If axis "x", leave the top position intact
+                                if (_proxy.hasAxisX) {
+                                    _top = positionTop;
+                                    // Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisX - _top: "+_top);
+                                }
+                                // otherwise, adjust the "top" variable
+                                else {
+                                    _top = (eventY + tempTop);
+                                    // Don't move more that maxTop 
+                                    if (_proxy.hasMaxTop == true && _proxy.maxTop < _top) {
+                                        _top = _proxy.maxTop;
+                                    }
+                                    // Don't move more that minTop 
+                                    if (_proxy.hasMinTop == true && _proxy.minTop > _top) {
+                                        _top = _proxy.minTop;
+                                    }
+                                    // Log.d(LCAT, "MotionEvent.ACTION_MOVE _proxy.hasAxisX NOT - _top: "+_top);
+                                }
+                                
+                                // set the new layout parameters
+                                _layout.optionLeft = new TiDimension(_left, TiDimension.TYPE_LEFT);
+                                _layout.optionTop = new TiDimension(_top, TiDimension.TYPE_LEFT);
+                                
+                                // now get the direction of the movement:
+                                // vertical
+                                if(oldTop > _top){
+                                    directionVertical = "up"+"";
+                                } else if(oldTop < _top){
+                                    directionVertical = "down"+"";
+                                } else {
+                                    directionVertical = "neutral"+"";
+                                }
+                                // horizontal
+                                if(oldLeft > _left){
+                                    directionHorizontal = "left"+"";
+                                } else if(oldLeft < _left){
+                                    directionHorizontal = "right"+"";
+                                } else {
+                                    directionHorizontal = "neutral"+"";
+                                }
 
-							oldTop = _top;
-							oldLeft = _left;
-							
-							// Log.d(LCAT, "MotionEvent.ACTION_MOVE _layout: "+_layout);
-							
-							// set the layout on the view
-							view.setLayoutParams(_layout);
-							
-							if (hasListenerMove) {
-								KrollDict props = new KrollDict();
-								props.put("left", _left);
-								props.put("top", _top);
-								KrollDict center = new KrollDict();
-								center.put("x", _left + view.getWidth() / 2);
-								center.put("y", _top + view.getHeight() / 2);
-								props.put("center", center);
-								_proxy.fireEvent("move", props);
-							}
+                                oldTop = _top;
+                                oldLeft = _left;
+                                
+                                // Log.d(LCAT, "MotionEvent.ACTION_MOVE _layout: "+_layout);
+                                
+                                // set the layout on the view
+                                view.setLayoutParams(_layout);
+                                
+                                if (hasListenerMove) {
+                                    KrollDict props = new KrollDict();
+                                    props.put("left", _left);
+                                    props.put("top", _top);
+                                    KrollDict center = new KrollDict();
+                                    center.put("x", _left + view.getWidth() / 2);
+                                    center.put("y", _top + view.getHeight() / 2);
+                                    props.put("center", center);
+                                    _proxy.fireEvent("move", props);
+                                }
+                            }
 							
 						break;
 						case MotionEvent.ACTION_UP:
@@ -304,8 +354,14 @@ public class ViewProxy extends TiViewProxy {
 							// Log.d(LCAT, "MotionEvent.ACTION_UP - DONE");
 							positionLeft = 0;
 							positionTop = 0;
+                            
+                            touchState = IDLE;
 						break;
-					}	
+                        case MotionEvent.ACTION_POINTER_UP:
+                            scale = pinchScale;
+                            touchState = TOUCH;
+                        break;
+					}
 					// Not too sure about this one, true or false?
 					return true;
 				}

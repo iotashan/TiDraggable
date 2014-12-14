@@ -33,54 +33,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package ti.draggable;
 
-import org.appcelerator.kroll.KrollDict;
-import org.appcelerator.kroll.KrollProxy;
-import org.appcelerator.kroll.annotations.Kroll;
-import org.appcelerator.titanium.proxy.TiViewProxy;
-import org.appcelerator.titanium.view.TiUIView;
+#import <UIKit/UIKit.h>
+#import "TiUtils.h"
+#import "TiUIView.h"
+#import "TiViewProxy.h"
 
-import android.app.Activity;
-
-@Kroll.proxy(creatableInModule = DraggableModule.class)
-public class ViewProxy extends TiViewProxy
+@interface TiDraggableGesture : TiProxy<TiProxyObserver, UIGestureRecognizerDelegate, TiAnimationDelegate>
 {
-
-	public ViewProxy()
-	{
-		super();
-	}
-
-	@Override
-    public void handleCreationDict(KrollDict options)
-    {
-		super.handleCreationDict(options);
-
-		ConfigProxy config = new ConfigProxy(options.getKrollDict("draggableConfig"));
-
-		this.setProperty("draggable", config);
-    }
-
-	@Override
-	public TiUIView createView(Activity activity)
-	{
-		if (this.view == null)
-		{
-			TiUIView view = new DraggableImpl(this);
-
-	        setView(view);
-
-	        return view;
-		}
-
-		return this.view;
-	}
-
-	@Kroll.getProperty @Kroll.method
-	public KrollProxy getDraggable()
-	{
-		return (KrollProxy) this.getProperty("draggable");
-	}
-
+    CGPoint touchStart;
+    CGPoint touchEnd;
+    CGPoint lastAnimationPosition;
+    BOOL isLognPressed;
 }
+
+- (id)initWithProxy:(TiViewProxy*)proxy andOptions:(NSDictionary*)options;
+
+@property (nonatomic, assign) TiViewProxy* proxy;
+@property (nonatomic, retain) UIGestureRecognizer* gesture;
+@property (nonatomic, retain) UIGestureRecognizer* longpress;
+
+typedef void (^CallbackBlock)(void);
+
+@end

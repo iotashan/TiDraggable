@@ -1,90 +1,72 @@
 /**
- *   Copyright 2012 Pedro Enrique
+ * An enhanced fork of the original TiDraggable module by Pedro Enrique,
+ * allows for simple creation of "draggable" views.
  *
- *   Licensed under the Apache License, Version 2.0 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
+ * Copyright (C) 2013 Seth Benjamin
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- *   
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * -- Original License --
+ *
+ * Copyright 2012 Pedro Enrique
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
 package ti.draggable;
 
 import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.annotations.Kroll;
-
-import org.appcelerator.titanium.TiApplication;
-import org.appcelerator.titanium.proxy.TiViewProxy;
-import org.appcelerator.kroll.common.TiConfig;
-
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.View.OnTouchListener;
+import org.appcelerator.kroll.common.Log;
 
 @Kroll.module(name="Draggable", id="ti.draggable")
 public class DraggableModule extends KrollModule
 {
+	private static final String TAG = "TiDraggable";
+	private static Boolean DEBUGGING = true;
 
-	// Standard Debugging variables
-	private static final String LCAT = "TiDraggable";
-	private static final boolean DBG = TiConfig.LOGD;
-
-	// You can define constants with @Kroll.constant, for example:
-	// @Kroll.constant public static final String EXTERNAL_NAME = value;
-	
 	public DraggableModule()
 	{
 		super();
 	}
 
-	@Kroll.onAppCreate
-	public static void onAppCreate(TiApplication app)
+	public static void debugLog(String message)
 	{
+		if (DEBUGGING)
+		{
+			Log.d(TAG, message);
+		}
 	}
-	
-	// Still testing, DO NOT USE
-	
-	@Kroll.method
-	public void makeDraggable(TiViewProxy viewproxy){
-		final TiViewProxy _proxy = viewproxy;
-		OnTouchListener listener = new OnTouchListener() {
-			int positionTop = 0;
-			int positionLeft = 0;
-			int tempTop = 0;
-			int tempLeft = 0;
-			@Override
-			public boolean onTouch(View v, MotionEvent event) {
-				positionLeft = positionLeft == 0 ? v.getLeft() : positionLeft;
-				positionTop = positionTop == 0 ? v.getTop() : positionTop;
-				
-				int eventX = Math.round(event.getRawX());
-				int eventY = Math.round(event.getRawY());
-				switch(event.getAction()){
-					case MotionEvent.ACTION_DOWN:
-						tempLeft = (positionLeft - eventX);
-						tempTop = (positionTop - eventY);
-					break;
-					case MotionEvent.ACTION_MOVE:
-						_proxy.setPropertyAndFire("left",(eventX + tempLeft));
-						_proxy.setPropertyAndFire("top",(eventY + tempTop));							
-						break;
-					case MotionEvent.ACTION_UP:
 
-					break;
-				}
-				return true;
-			}
-			
-		};
-		viewproxy.getOrCreateView().getNativeView().setOnTouchListener(listener);
-		
+	@Kroll.setProperty
+	public void setDebug(Boolean debug)
+	{
+		DEBUGGING = debug;
+	}
+
+	@Kroll.getProperty
+	public Boolean getDebug()
+	{
+		return DEBUGGING;
 	}
 }
-

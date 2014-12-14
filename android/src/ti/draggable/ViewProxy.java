@@ -66,6 +66,7 @@ public class ViewProxy extends TiViewProxy {
 	// Still working on this
 	private boolean hasListenerStart = false;
 	private boolean hasListenerMove = false;
+	private boolean hasListenerPinch = false;
 	private boolean hasListenerEnd = false;
 
 	//Touch event related variables
@@ -168,6 +169,9 @@ public class ViewProxy extends TiViewProxy {
 							if (hasListenerMove == false) {
 								hasListenerMove = _proxy.hasListeners("move");
 							}
+							if (hasListenerPinch == false) {
+								hasListenerPinch = _proxy.hasListeners("pinch");
+							}
 							if (hasListenerEnd == false) {
 								hasListenerEnd = _proxy.hasListeners("end");
 							}
@@ -208,22 +212,21 @@ public class ViewProxy extends TiViewProxy {
                                 distCurrent = FloatMath.sqrt(distx * distx + disty * disty);
                                 
                                 // resize according to scale
+                                float thisScale = distCurrent/dist0;
                                 pinchScale = distCurrent/dist0 * scale;
                                 
                                 if (pinchScale < 0.1){
                                     pinchScale = 0.1f; 
                                 }
-                                
-                                Object[] matrixArgs = {pinchScale};
-                                Ti2DMatrix matrix = new Ti2DMatrix().scale(matrixArgs);
-                                
-                                _layout.optionTransform = matrix;
+
+                                Log.d(LCAT, "MotionEvent.ACTION_MOVE scale: "+thisScale);
                                 Log.d(LCAT, "MotionEvent.ACTION_MOVE pinchScale: "+pinchScale);
-                                Log.d(LCAT, "MotionEvent.ACTION_MOVE matrixArgs: "+matrixArgs);
-                                Log.d(LCAT, "MotionEvent.ACTION_MOVE _layout: "+_layout);
-                                
-                                // set the scale on the view
-                                view.setLayoutParams(_layout);
+                                if (hasListenerPinch) {
+                                    KrollDict props = new KrollDict();
+                                    props.put("scale", thisScale);
+                                    props.put("pinchScale", pinchScale);
+                                    _proxy.fireEvent("pinch", props);
+                                }
                             } else {
                                 Log.d(LCAT, "MotionEvent.ACTION_MOVE: NOT PINCH");
                                 // Log.d(LCAT, "MotionEvent.ACTION_MOVE");
